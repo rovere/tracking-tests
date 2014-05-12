@@ -17,7 +17,7 @@
 //
 //
 
-#define DEBUG
+// #define DEBUG
 
 // system include files
 #include <memory>
@@ -145,7 +145,8 @@ class Occupancy : public edm::EDAnalyzer {
   virtual void endLuminosityBlock(edm::LuminosityBlock const&,
                                   edm::EventSetup const&);
 
-  void occupancy(const edm::Event&, const edm::EventSetup&);
+  template<class Clusters, class HitType>
+  void occupancy(const edm::Event&, const edm::EventSetup&, const char *);
   void diMuonAnalysis(const edm::Event&, const edm::EventSetup&);
   void clusterAnalysis(const edm::Event&, const edm::EventSetup&);
   void recHitsAnalysis(const edm::Event&, const edm::EventSetup&);
@@ -213,11 +214,11 @@ class Occupancy : public edm::EDAnalyzer {
   TProfile * h_surviving_strip_TID_neg_clusters;
   TProfile * h_surviving_strip_TEC_pos_clusters;
   TProfile * h_surviving_strip_TEC_neg_clusters;
-  TProfile2D * h_pixel_clusters_map;
-  TProfile2D * h_pixel_clusters_ontrack_map;
-  TProfile2D * h_pixel_sameclusters_ontrack_map;
-  TProfile2D * h_pixel_occupancy_ontrack_map;
-  TProfile2D * h_pixel_occupancy_sameclusters_ontrack_map;
+  TProfile2D * h_tracker_clusters_map;
+  TProfile2D * h_tracker_clusters_ontrack_map;
+  TProfile2D * h_tracker_sameclusters_ontrack_map;
+  TProfile2D * h_tracker_occupancy_ontrack_map;
+  TProfile2D * h_tracker_occupancy_sameclusters_ontrack_map;
 };
 
 //
@@ -426,24 +427,24 @@ Occupancy::Occupancy(const edm::ParameterSet& iConfig)
   std::cout << "Using " << sizeof(rechit_counters)/sizeof(RecHitStudy)
             << " detector counters." << std::endl;
 #endif
-  h_pixel_clusters_map = fs->make<TProfile2D>("PixelClusterMap",
-                                              "PixelClusterMap",
+  h_tracker_clusters_map = fs->make<TProfile2D>("TrackerClusterMap",
+                                              "TrackerClusterMap",
                                               560, -280., 280.,
                                               120, 0., 120.);
-  h_pixel_clusters_ontrack_map = fs->make<TProfile2D>("PixelClusterOntrackMap",
-                                                      "PixelClusterOntrackMap",
+  h_tracker_clusters_ontrack_map = fs->make<TProfile2D>("TrackerClusterOntrackMap",
+                                                      "TrackerClusterOntrackMap",
                                                       560, -280., 280.,
                                                       120, 0., 120.);
-  h_pixel_sameclusters_ontrack_map = fs->make<TProfile2D>("PixelSameClusterOntrackMap",
-                                                          "PixelSameClusterOntrackMap",
+  h_tracker_sameclusters_ontrack_map = fs->make<TProfile2D>("TrackerSameClusterOntrackMap",
+                                                          "TrackerSameClusterOntrackMap",
                                                           560, -280., 280.,
                                                       120, 0., 120.);
-  h_pixel_occupancy_ontrack_map = fs->make<TProfile2D>("PixelOccupancyOntrackMap",
-                                                       "PixelOccupancyOntrackMap",
+  h_tracker_occupancy_ontrack_map = fs->make<TProfile2D>("TrackerOccupancyOntrackMap",
+                                                       "TrackerOccupancyOntrackMap",
                                                        560, -280., 280.,
                                                        120, 0., 120.);
-  h_pixel_occupancy_sameclusters_ontrack_map = fs->make<TProfile2D>("PixelOccupancySameClusterOntrackMap",
-                                                                    "PixelOccupancySameClusterOntrackMap",
+  h_tracker_occupancy_sameclusters_ontrack_map = fs->make<TProfile2D>("TrackerOccupancySameClusterOntrackMap",
+                                                                    "TrackerOccupancySameClusterOntrackMap",
                                                                     560, -280., 280.,
                                                                     120, 0., 120.);
 }
@@ -497,11 +498,11 @@ Occupancy::~Occupancy() {
   delete h_surviving_strip_TID_neg_clusters;
   delete h_surviving_strip_TEC_pos_clusters;
   delete h_surviving_strip_TEC_neg_clusters;
-  delete h_pixel_clusters_map;
-  delete h_pixel_clusters_ontrack_map;
-  delete h_pixel_sameclusters_ontrack_map;
-  delete h_pixel_occupancy_ontrack_map;
-  delete h_pixel_occupancy_sameclusters_ontrack_map;
+  delete h_tracker_clusters_map;
+  delete h_tracker_clusters_ontrack_map;
+  delete h_tracker_sameclusters_ontrack_map;
+  delete h_tracker_occupancy_ontrack_map;
+  delete h_tracker_occupancy_sameclusters_ontrack_map;
 }
 
 
@@ -569,7 +570,8 @@ Occupancy::analyze(const edm::Event& iEvent,
   recHitsAnalysis(iEvent, iSetup);
 
   // Perform occupancy analysis
-  occupancy(iEvent, iSetup);
+  occupancy<SiPixelCluster, SiPixelRecHit>(iEvent, iSetup, "siPixelClusters");
+  occupancy<SiStripCluster, TrackerSingleRecHit>(iEvent, iSetup, "siStripClusters");
 
   return;
 
@@ -594,34 +596,36 @@ void Occupancy::fillOccupancyProfileFromMap(T * p,
   }
 }
 
+template<class T, class Hit>
 void Occupancy::occupancy(const edm::Event & iEvent,
-                          const edm::EventSetup& iSetup) {
+                          const edm::EventSetup& iSetup,
+                          const char * label) {
 
   const Local2DPoint center(0.,0.);
-  std::map<unsigned int, int> pixel_clusters_map;
-  std::map<unsigned int, int> pixel_clusters_ontrack_map;
-  std::map<unsigned int, int> pixel_sameclusters_ontrack_map;
-  std::map<unsigned int, int> pixel_occupancy_ontrack_map;
-  std::map<unsigned int, int> pixel_occupancy_sameclusters_ontrack_map;
+  std::map<unsigned int, int> tracker_clusters_map;
+  std::map<unsigned int, int> tracker_clusters_ontrack_map;
+  std::map<unsigned int, int> tracker_sameclusters_ontrack_map;
+  std::map<unsigned int, int> tracker_occupancy_ontrack_map;
+  std::map<unsigned int, int> tracker_occupancy_sameclusters_ontrack_map;
 
   edm::ESHandle<TrackerGeometry> trkgeo;
   iSetup.get<TrackerDigiGeometryRecord>().get("", trkgeo);
 
-  edm::Handle<edmNew::DetSetVector<SiPixelCluster> > pixel_clusters;
-  iEvent.getByLabel("siPixelClusters", pixel_clusters);
+  edm::Handle<edmNew::DetSetVector<T> > tracker_clusters;
+  iEvent.getByLabel(label, tracker_clusters);
 
-  if (! pixel_clusters.isValid())
+  if (! tracker_clusters.isValid())
     return;
 
   // auto detunits = trkgeo->detUnitIds();
   // for ( auto d : detunits) {
-  //   pixel_clusters_map[d.rawId()] = 0;
-  //   pixel_clusters_ontrack_map[d.rawId()] = 0;
+  //   tracker_clusters_map[d.rawId()] = 0;
+  //   tracker_clusters_ontrack_map[d.rawId()] = 0;
   // }
 
-  for (auto det : *(pixel_clusters.product())) {
+  for (auto det : *(tracker_clusters.product())) {
     DetId d(det.detId());
-    pixel_clusters_map[d.rawId()] = det.size();
+    tracker_clusters_map[d.rawId()] = det.size();
 
 #ifdef DEBUG
     if (d.subdetId() == PixelSubdetector::PixelBarrel) {
@@ -640,77 +644,76 @@ void Occupancy::occupancy(const edm::Event & iEvent,
 
   int counter = 0;
   for (auto track : *tracks.product()) {
+    ++counter;
 #ifdef DEBUG
-    std::cout << "Starting new track " << ++counter << std::endl;
+    std::cout << "Starting new track " << counter << std::endl;
 #endif
-    std::map<std::pair<unsigned int, int>, int> pixel_occupancy_sameclusterontrack_map;
+    std::map<std::pair<unsigned int, int>, int> tracker_occupancy_sameclusterontrack_map;
     auto bi = track.recHitsBegin();
     auto be = track.recHitsEnd();
     for (; bi != be; ++bi) {
       TransientTrackingRecHit::RecHitPointer thit = builder_->build(&**bi);
       if (thit->isValid()) {
         DetId d(thit->det()->geographicalId());
-        const SiPixelRecHit * px_hit = dynamic_cast<const SiPixelRecHit*>(thit->hit());
-        if (px_hit) {
+        const Hit * tk_hit = dynamic_cast<const Hit*>(thit->hit());
+        if (tk_hit) {
 #ifdef DEBUG
-          std::cout << "Using px cluster linked to rechit "
-          << px_hit->cluster().index() << std::endl;
+          std::cout << "Using tk cluster linked to rechit "
+          << tk_hit->omniCluster().index() << std::endl;
 #endif
-          if (pixel_clusters_ontrack_map.find(d.rawId()) == pixel_clusters_ontrack_map.end()) {
-            pixel_clusters_ontrack_map[d.rawId()] = 0;
+          if (tracker_clusters_ontrack_map.find(d.rawId()) == tracker_clusters_ontrack_map.end()) {
+            tracker_clusters_ontrack_map[d.rawId()] = 0;
           }
-          pixel_clusters_ontrack_map[d.rawId()] += 1;
-          if (pixel_occupancy_sameclusterontrack_map.find(
-                  std::make_pair(d.rawId(), px_hit->cluster().index()))
-              == pixel_occupancy_sameclusterontrack_map.end() ) {
-            pixel_occupancy_sameclusterontrack_map[std::make_pair(d.rawId(), px_hit->cluster().index())] = 0;
+          tracker_clusters_ontrack_map[d.rawId()] += 1;
+          if (tracker_occupancy_sameclusterontrack_map.find(
+                  std::make_pair(d.rawId(), tk_hit->omniCluster().index()))
+              == tracker_occupancy_sameclusterontrack_map.end() ) {
+            tracker_occupancy_sameclusterontrack_map[std::make_pair(d.rawId(), tk_hit->omniCluster().index())] = 0;
           } else {
-            if (pixel_sameclusters_ontrack_map.find(d.rawId()) == pixel_sameclusters_ontrack_map.end()) {
-              pixel_sameclusters_ontrack_map[d.rawId()] = 0;
+            if (tracker_sameclusters_ontrack_map.find(d.rawId()) == tracker_sameclusters_ontrack_map.end()) {
+              tracker_sameclusters_ontrack_map[d.rawId()] = 0;
             }
-            pixel_sameclusters_ontrack_map[d.rawId()] += 1;
+            tracker_sameclusters_ontrack_map[d.rawId()] += 1;
 #ifdef DEBUG
             std::cout << "Apparently reused??" << std::endl;
 #endif
           }
-          pixel_occupancy_sameclusterontrack_map[std::make_pair(d.rawId(), px_hit->cluster().index())] += 1;
-        } else {
-          assert(0);
+          tracker_occupancy_sameclusterontrack_map[std::make_pair(d.rawId(), tk_hit->omniCluster().index())] += 1;
         }
       }
     }
   }
 
-  for (auto item : pixel_clusters_map) {
+  for (auto item : tracker_clusters_map) {
     int num = 0;
     int den = item.second;
-    auto num_sameclusters = pixel_sameclusters_ontrack_map.find(item.first);
-    if (num_sameclusters != pixel_sameclusters_ontrack_map.end())
+    auto num_sameclusters = tracker_sameclusters_ontrack_map.find(item.first);
+    if (num_sameclusters != tracker_sameclusters_ontrack_map.end())
       num = num_sameclusters->second;
     float ratio = den ? float(num) / float(den) : 0;
-    pixel_occupancy_sameclusters_ontrack_map[item.first] = ratio;
+    tracker_occupancy_sameclusters_ontrack_map[item.first] = ratio;
 
-    auto num_clusters = pixel_clusters_ontrack_map.find(item.first);
-    if (num_clusters != pixel_clusters_ontrack_map.end())
+    auto num_clusters = tracker_clusters_ontrack_map.find(item.first);
+    if (num_clusters != tracker_clusters_ontrack_map.end())
       num = num_clusters->second;
     ratio = den ? float(num) / float(den) : 0;
-    pixel_occupancy_ontrack_map[item.first] = ratio;
+    tracker_occupancy_ontrack_map[item.first] = ratio;
   }
 
-  fillOccupancyProfileFromMap(h_pixel_clusters_map,
-                              pixel_clusters_map,
+  fillOccupancyProfileFromMap(h_tracker_clusters_map,
+                              tracker_clusters_map,
                               *trkgeo);
-  fillOccupancyProfileFromMap(h_pixel_clusters_ontrack_map,
-                              pixel_clusters_ontrack_map,
+  fillOccupancyProfileFromMap(h_tracker_clusters_ontrack_map,
+                              tracker_clusters_ontrack_map,
                               *trkgeo);
-  fillOccupancyProfileFromMap(h_pixel_occupancy_ontrack_map,
-                              pixel_occupancy_ontrack_map,
+  fillOccupancyProfileFromMap(h_tracker_occupancy_ontrack_map,
+                              tracker_occupancy_ontrack_map,
                               *trkgeo);
-  fillOccupancyProfileFromMap(h_pixel_sameclusters_ontrack_map,
-                              pixel_sameclusters_ontrack_map,
+  fillOccupancyProfileFromMap(h_tracker_sameclusters_ontrack_map,
+                              tracker_sameclusters_ontrack_map,
                               *trkgeo);
-  fillOccupancyProfileFromMap(h_pixel_occupancy_sameclusters_ontrack_map,
-                              pixel_occupancy_sameclusters_ontrack_map,
+  fillOccupancyProfileFromMap(h_tracker_occupancy_sameclusters_ontrack_map,
+                              tracker_occupancy_sameclusters_ontrack_map,
                               *trkgeo);
 }
 
@@ -754,7 +757,7 @@ void Occupancy::clusterAnalysis(const edm::Event & iEvent,
     edm::Handle<PixelMaskContainer> pixel_mask_clusters;
     iEvent.getByLabel(*it, pixel_mask_clusters);
     if (! pixel_mask_clusters.isValid()) {
-      break;
+      continue;
     }
     mask.reserve(pixel_mask_clusters->size());
     pixel_mask_clusters->copyMaskTo(mask);
@@ -966,7 +969,7 @@ void Occupancy::recHitsAnalysis(const edm::Event & iEvent,
     edm::Handle<PixelMaskContainer> pixel_mask_clusters;
     iEvent.getByLabel(*it, pixel_mask_clusters);
     if (! pixel_mask_clusters.isValid()) {
-      break;
+      continue;
     }
 
     int base_index = 0;
