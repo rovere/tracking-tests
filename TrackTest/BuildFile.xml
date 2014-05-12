@@ -15,8 +15,4 @@
 <use name="CommonTools/UtilAlgos"/>
 
 <flags EDM_PLUGIN="1"/>
-<use name="DataFormats/TrackReco"/>
-<export>
-   <lib name="1"/>
-</export>
 
