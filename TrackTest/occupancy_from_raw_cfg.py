@@ -22,10 +22,21 @@ process.maxEvents = cms.untracked.PSet(
     input = cms.untracked.int32(-1)
 )
 
+# Grab files dynamically from the specified eos directory
+import commands
+JOB_LABEL = "PU25_BX25"
+# Do not forget trailing '/'.
+EOS_REPO = '/store/group/phys_tracking/samples_710pre7/DIGI/AVE_%s/TTbar/' % JOB_LABEL
+# Grab it after some lookups throu type -a eoscms/eos
+EOS_COMMAND = '/afs/cern.ch/project/eos/installation/0.3.15/bin/eos.select'
+input_files = commands.getoutput('%s ls %s' % (EOS_COMMAND, EOS_REPO))
+input_files = input_files.split('\n')
+input_files = map(lambda x: '%s%s' %(EOS_REPO, x), input_files)
+
 # Input source
 process.source = cms.Source("PoolSource",
     secondaryFileNames = cms.untracked.vstring(),
-    fileNames = cms.untracked.vstring('/store/group/phys_tracking/samples_710pre7/DIGI/AVE_PU25_BX25/TTbar/DIGI_PU25_BX25_DIGI_L1_DIGI2RAW_HLT_PU_98_1_aEo.root')
+    fileNames = cms.untracked.vstring(input_files)
 )
 
 process.options = cms.untracked.PSet(
