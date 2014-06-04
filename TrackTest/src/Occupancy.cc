@@ -602,10 +602,37 @@ void Occupancy::occupancy(const edm::Event & iEvent,
                           const char * label) {
 
   const Local2DPoint center(0.,0.);
+
+  /** Map that store the number of clusters that have been
+      reconstructed for every DetIds. Only DetIds that have at least
+      one cluster reconstructed enter this map. */
   std::map<unsigned int, int> tracker_clusters_map;
+
+  /** Map that, for every event, will keep track of how many clusters
+      on a specific DetId module have been used to reconstruct
+      tracks. Only DetIds that have clusters used to recontruct tracks
+      enter this map. */
   std::map<unsigned int, int> tracker_clusters_ontrack_map;
+
+  /** Map that counts, **for all tracks**, how many times a single
+      cluster on a single DetId has been used more than once. Only
+      DetIds that have at least on cluster reused on the same track
+      enter this map. The value of the map represents the number of
+      times a cluster on a specific DetId[key for the value] has been
+      reused within the same track. */
   std::map<unsigned int, int> tracker_sameclusters_ontrack_map;
+
+  /** This map is basically the ration of tracker_clusters_ontrack_map
+      / tracker_clusters_map, i.e. it represents the fraction of
+      clusters used to reconstruct tracks wrt the total number of
+      reconstructed cluster for a specific DetId. */
   std::map<unsigned int, int> tracker_occupancy_ontrack_map;
+
+  /** This map is basically the ration of
+      tracker_sameclusters_ontrack_map / tracker_clusters_map, i.e. it
+      represents the fraction of clusters that are reused within the
+      same track wrt the total number of reconstructed cluster for a
+      specific DetId. */
   std::map<unsigned int, int> tracker_occupancy_sameclusters_ontrack_map;
 
   edm::ESHandle<TrackerGeometry> trkgeo;
@@ -648,6 +675,10 @@ void Occupancy::occupancy(const edm::Event & iEvent,
 #ifdef DEBUG
     std::cout << "Starting new track " << counter << std::endl;
 #endif
+    /** Service container, that is re-initialized at every new track,
+        that is used within the loop to check if, for every given
+        track, the very same cluster (same rawId, same cluster_index)
+        has been used to build the track. */
     std::map<std::pair<unsigned int, int>, int> tracker_occupancy_sameclusterontrack_map;
     auto bi = track.recHitsBegin();
     auto be = track.recHitsEnd();
