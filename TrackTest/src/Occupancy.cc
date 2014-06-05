@@ -622,6 +622,14 @@ void Occupancy::occupancy(const edm::Event & iEvent,
       reused within the same track. */
   std::map<unsigned int, int> tracker_sameclusters_ontrack_map;
 
+  /** Map that counts for every detId how many unique clusters have
+      been reused more than once. It is used to correctly compute the
+      occupancy for the reused clusters, which will be the ratio of
+      this entries w.r.t the total number of clusters on the specific
+      Detid. Only detids that have clusters that are reused enter the
+      map. */
+  std::map<unsigned int, std::set<int> > tracker_reused_clusters_on_detid;
+
   /** This map is basically the ration of tracker_clusters_ontrack_map
       / tracker_clusters_map, i.e. it represents the fraction of
       clusters used to reconstruct tracks wrt the total number of
@@ -629,7 +637,7 @@ void Occupancy::occupancy(const edm::Event & iEvent,
   std::map<unsigned int, int> tracker_occupancy_ontrack_map;
 
   /** This map is basically the ration of
-      tracker_sameclusters_ontrack_map / tracker_clusters_map, i.e. it
+      tracker_reused_clusters_on_detid / tracker_clusters_map, i.e. it
       represents the fraction of clusters that are reused within the
       same track wrt the total number of reconstructed cluster for a
       specific DetId. */
@@ -643,12 +651,6 @@ void Occupancy::occupancy(const edm::Event & iEvent,
 
   if (! tracker_clusters.isValid())
     return;
-
-  // auto detunits = trkgeo->detUnitIds();
-  // for ( auto d : detunits) {
-  //   tracker_clusters_map[d.rawId()] = 0;
-  //   tracker_clusters_ontrack_map[d.rawId()] = 0;
-  // }
 
   for (auto det : *(tracker_clusters.product())) {
     DetId d(det.detId());
@@ -696,6 +698,11 @@ void Occupancy::occupancy(const edm::Event & iEvent,
             tracker_clusters_ontrack_map[d.rawId()] = 0;
           }
           tracker_clusters_ontrack_map[d.rawId()] += 1;
+
+          // Check if, for this specific track, the same cluster on
+          // the same detId has already been used. True branch means
+          // it was never used, false branch means it was already
+          // used.
           if (tracker_occupancy_sameclusterontrack_map.find(
                   std::make_pair(d.rawId(), tk_hit->omniCluster().index()))
               == tracker_occupancy_sameclusterontrack_map.end() ) {
@@ -705,6 +712,7 @@ void Occupancy::occupancy(const edm::Event & iEvent,
               tracker_sameclusters_ontrack_map[d.rawId()] = 0;
             }
             tracker_sameclusters_ontrack_map[d.rawId()] += 1;
+            tracker_reused_clusters_on_detid[d.rawId()].insert(tk_hit->omniCluster().index());
 #ifdef DEBUG
             std::cout << "Apparently reused??" << std::endl;
 #endif
@@ -718,9 +726,9 @@ void Occupancy::occupancy(const edm::Event & iEvent,
   for (auto item : tracker_clusters_map) {
     int num = 0;
     int den = item.second;
-    auto num_sameclusters = tracker_sameclusters_ontrack_map.find(item.first);
-    if (num_sameclusters != tracker_sameclusters_ontrack_map.end())
-      num = num_sameclusters->second;
+    auto num_sameclusters = tracker_reused_clusters_on_detid.find(item.first);
+    if (num_sameclusters != tracker_reused_clusters_on_detid.end())
+      num = num_sameclusters->second.size();
     float ratio = den ? float(num) / float(den) : 0;
     tracker_occupancy_sameclusters_ontrack_map[item.first] = ratio;
 
