@@ -11,8 +11,9 @@ root -b -q TrackValHistoPublisher.C\(\"mtv_test_pu20.root\",\"cutsReco\",\"mtv_d
 void TrackValHistoPublisher(TString dir="plots_def_vs_test",
 			    char* newFile="trackValid.root",char* newLabel="stripTripletStepHP", 
 			    char* refFile="trackValid.root",char* refLabel="stripPairStepHP",
-			    int newMarker = 20, int newColor = kRed, int refMarker = 21, int refColor = kBlack,
-			    float MAXEFF=1.,float MAXFAKE=1.,float MAXDUPL=1.)
+			    int newMarker = 20, int newColor = kRed, int refMarker = 21,
+                            int refColor = kBlack,
+                            float MAXEFF=1.,float MAXFAKE=1.,float MAXDUPL=1.)
 {
   //gROOT->ProcessLine(".x HistoCompare_Tracks.C");
  gROOT ->Reset();
@@ -42,8 +43,8 @@ void TrackValHistoPublisher(TString dir="plots_def_vs_test",
 
  gSystem->Exec("mkdir -p "+dir);
  gSystem->Exec("mkdir -p "+dir+"/singleplots");
- gSystem->Exec("cp ~/private/index.php "+dir+"/");
- gSystem->Exec("cp ~/private/index.php "+dir+"/singleplots/");
+ // gSystem->Exec("cp ~/private/index.php "+dir+"/");
+ // gSystem->Exec("cp ~/private/index.php "+dir+"/singleplots/");
 
 //  int refColor = kBlack;
 //  int newColor = kRed;
